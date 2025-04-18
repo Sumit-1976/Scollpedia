@@ -95,45 +95,46 @@ const Register: React.FC = () => {
     setIsLoading(true);
     
     try {
-      const { error } = await signUp(email, password, {
-        full_name: name
-      });
-      
-      if (error) {
-        setErrorMessage(error);
-        toast({
-          title: "Registration failed",
-          description: error,
-          variant: "destructive",
-        });
-      } else {
-        // Get the user ID from the session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // Upload avatar if provided
-          if (avatarFile) {
-            const avatarUrl = await uploadAvatar(session.user.id);
-            
-            if (avatarUrl) {
-              // Update user metadata with avatar URL
-              await supabase.auth.updateUser({
-                data: {
-                  avatar_url: avatarUrl,
-                },
-              });
-            }
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
           }
+        }
+      });
+  
+      if (signUpError) {
+        throw signUpError;
+      }
+  
+      // Upload avatar if provided
+      if (avatarFile && signUpData.user?.id) {
+        try {
+          const avatarUrl = await uploadAvatar(signUpData.user.id);
           
-          toast({
-            title: "Registration successful",
-            description: "Welcome to Scrollpedia! Your account has been created. Please log in to continue.",
-          });
-          
-          // Redirect to login page instead of feed
-          navigate('/login');
+          if (avatarUrl) {
+            await supabase.auth.updateUser({
+              data: {
+                avatar_url: avatarUrl,
+              },
+            });
+          }
+        } catch (uploadError) {
+          console.error("Avatar upload failed:", uploadError);
+          // Continue even if avatar upload fails
         }
       }
+  
+      toast({
+        title: "Registration successful",
+        description: "Welcome! Please check your email to confirm your account.",
+      });
+      
+      // Navigate to login page immediately after successful sign-up
+      navigate('/login');
+      
     } catch (error: any) {
       setErrorMessage(error.message || "An unexpected error occurred");
       toast({
